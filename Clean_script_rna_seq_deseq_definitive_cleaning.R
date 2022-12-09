@@ -49,6 +49,9 @@ suppressPackageStartupMessages({
 
 ## CONFIGURATION
 #####################
+#Paths
+workingD <- rstudioapi::getActiveDocumentContext()$path
+setwd(dirname(workingD))
 
 #Load config file
 config <- "C:/Users/CBM/Desktop/BWH_counts/configfile_def.txt" 
