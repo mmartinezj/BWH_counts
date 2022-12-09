@@ -71,6 +71,7 @@ Una vez instaladas y activadas las librerías a emplear, se le indica al program
 #Paths
 workingD <- rstudioapi::getActiveDocumentContext()$path
 setwd(dirname(workingD))
+resD <- paste0("results/")
 
 #Load config file
 config <- "C:/Users/CBM/Desktop/BWH_counts/configfile_def.txt" 
@@ -93,7 +94,7 @@ sampleTable$PED <- factor(sampleTable$PED)
 ```{r}
 
 #Build model using condition as main variable
-data <- DESeqDataSetFromHTSeqCount(sampleTable, directory="C:/Users/CBM/Desktop/BWH_counts", 
+data <- DESeqDataSetFromHTSeqCount(sampleTable, directory="C:/Users/CBM/Desktop/BWH_counts/", 
                                    design = ~ age + gender + PED + condition)
 
 #Set reference condition
@@ -115,7 +116,7 @@ dds <- DESeq(data)
 
 #Obtain and write a file with normalized counts
 ncounts <- counts(dds, normalized=TRUE)
-write.table (ncounts, file="definitive_results/tsv/deseq2_normalized_counts_.tsv", quote=FALSE, sep = "\t", col.names=NA) 
+write.table (ncounts, file=paste0(resD, "deseq2_normalized_counts_.tsv"), quote=FALSE, sep = "\t", col.names=NA) 
 
 ```
 
@@ -136,7 +137,7 @@ assay(vst) <- mat
 
 
 #PCA plot_labelled
-tiff(filename = "definitive_results/plots/deseq2_pca.tiff", units="in", width=5, height=5, res=300)
+tiff(filename = paste0(resD,"deseq2_pca.tiff"), units="in", width=5, height=5, res=300)
 pca <- plotPCA(vst)
 pca + ggtitle("Principal Components Plot") + geom_text_repel(aes(label=colnames(vst)),  size=2)
 invisible(dev.off())
@@ -195,18 +196,18 @@ lsubcounts <- log2(subcounts+1)
 
 
 #Write all genes
-file <- paste("definitive_results/tsv/all_genes_", suffix, ".tsv", sep="")
+file <- paste0(resD, "all_genes_", suffix, ".tsv", sep="")
 write.table (res, file=file, quote=FALSE, sep="\t", col.names=NA) 
 
 
 #Write significant genes (padj<0.05)
-file <- paste("definitive_results/tsv/0.05_sig_padj_", suffix, ".tsv", sep="")
+file <- paste0(resD, "0.05_sig_padj_", suffix, ".tsv", sep="")
 write.table (significant, file=file, quote=FALSE, sep="\t", col.names=NA)
 
 
 #Write significant genes (pvalue instead of padj)
 sig_pval <- subset(res, res$pvalue < cutoff)
-file <- paste("definitive_results/tsv/deseq2_sig_padj_", suffix, ".tsv", sep="")
+file <- paste0(resD, "deseq2_sig_padj_", suffix, ".tsv", sep="")
 write.table (sig_pval, file=file, quote=FALSE, sep="\t", col.names=NA)
 
 ```
@@ -220,7 +221,7 @@ write.table (sig_pval, file=file, quote=FALSE, sep="\t", col.names=NA)
 
 ## MA-plot
 
-file <- paste("definitive_results/plots/deseq2_maplot.tiff", sep="")
+file <- paste0(resD, "deseq2_maplot.tiff", sep="")
 main <- "MA-plot"
 
 jpeg(filename = file, units="in", width=5, height=5, res=300)
@@ -240,7 +241,7 @@ keep_FC <- (res_2$log2FoldChange <= 4.5) & (res_2$log2FoldChange >= -4.5)
 res_2 <- res_2[keep_FC,]
 rm(keep_FC)
 
-file <- paste("definitive_results/plots/volcano_plot_", suffix, ".tiff", sep="")
+file <- paste0(resD, "volcano_plot_", suffix, ".tiff", sep="")
 jpeg(filename = file, units="in", width=10, height=9, res=300)   
 EnhancedVolcano(res_2,
                 lab = res_2$symbol,
@@ -275,7 +276,7 @@ genes <- 17 #number of significant genes (padj < 0.01)
 significant_symbol <- as.character(significant$symbol)
 my_colour = list(df=c(l1="skyblue", l2="orange"))
 
-file <- paste("definitive_results/plots/heatmap_", suffix, ".jpeg", sep="")
+file <- paste0(resD, "heatmap_", suffix, ".jpeg", sep="")
 main <- paste("Heatmap of genes with p value adjusted < 0.01", sep=" ")
 jpeg(filename = file, units="in", width=8, height=5, res=300) 
 pheatmap(mat=lsubcounts[1:genes,], 
