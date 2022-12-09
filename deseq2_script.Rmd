@@ -68,6 +68,9 @@ suppressPackageStartupMessages({
 Una vez instaladas y activadas las librerías a emplear, se le indica al programa el archivo que contiene la información sobre cada muestra: nombre de los archivos que contienen los contajes de las lecturas, identificador único de cada muestra, identificador de cada familia, condición (afectado o no afectado), sexo y edad.
 
 ```{r}
+#Paths
+workingD <- rstudioapi::getActiveDocumentContext()$path
+setwd(dirname(workingD))
 
 #Load config file
 config <- "C:/Users/CBM/Desktop/BWH_counts/configfile_def.txt" 
