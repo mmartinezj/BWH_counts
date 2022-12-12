@@ -65,7 +65,7 @@ suppressPackageStartupMessages({
 
 ## CONFIGURACIÓN
 
-Una vez instaladas y activadas las librerías a emplear, se le indica al programa el archivo que contiene la información sobre cada muestra: nombre de los archivos que contienen los contajes de las lecturas, identificador único de cada muestra, identificador de cada familia, condición (afectado o no afectado), sexo y edad.
+Una vez instaladas y activadas las librerías a emplear, se le indica al programa el archivo que contiene la información sobre cada muestra: nombre de los archivos que contienen los contajes de las lecturas, identificador único de cada muestra, identificador de cada familia, condición (afectado o no afectado), sexo y edad; y se guarda en la variable config. Después se cargan los datos de contajes de lecturas de cada muestra. Finalmente se transforman las variables de los datos en factores para trabajar con DESeq2.
 
 ```{r}
 #Paths
@@ -89,7 +89,13 @@ sampleTable$PED <- factor(sampleTable$PED)
 
 ```
 
-## DATA
+## DATOS
+
+Una vez que se disponen de los datos de cada muestra, se procede a construir el modelo para realizar el Análisis de Expresión Diferencial. En este caso, el modelo se diseña con la variable condición como variable principal, mientras que la edad, el sexo y la familia actúan como covariables del modelo. 
+
+A continuación, se establece la condición "Unaffected" como condición control para la construcción del objeto de DESeq, necesario para la realización del Análisis de Expresión Diferencial. Además se realiza un filtrado previo a la construcción de este objeto donde se descartan aquellos genes con valores de lecturas menores a 10. 
+
+Finalmente se construye el objeto de DESeqDataSet con la función DESeq para poder realizar el análisis de expresión diferencial posteriormente. Por otra parte, se guardan las cuentas normalizadas por si fueran necesarias para procesos downstream.
 
 ```{r}
 
@@ -109,32 +115,29 @@ rm(keep)
 #Run deseq
 dds <- DESeq(data)
 
-#Alternative deseq run
-#dds <- estimateSizeFactors(data)
-#dds <- estimateDispersions(dds)
-#dds <- nbinomWaldTest(dds, maxit = 10000)
-
 #Obtain and write a file with normalized counts
 ncounts <- counts(dds, normalized=TRUE)
 write.table (ncounts, file=paste0(resD, "deseq2_normalized_counts_.tsv"), quote=FALSE, sep = "\t", col.names=NA) 
 
 ```
 
-## VISUALIZE DATA (transformations of data)
+## VISUALIZACIÓN DE LOS DATOS
+
+
 
 ```{r}
+transformation <- "vst" # select between "rlt" (Tikhonov Regularized Log Transformation) or "vst" (Variance stabilizing transformation)
 
-#Tikhonov Regularized Log Transformation (RLT)
-rlt <- rlog(dds, blind = FALSE) #calculates RLT
-rltMat <- assay(rlt) #takes the data layer on which RLT is saved
-
-#Variance stabilizing transformation (VST)
-vst <- varianceStabilizingTransformation(dds, blind = FALSE) #calculates VST
-vstMat <- assay(vst) #takes the data layer on which VST is saved
-mm <- model.matrix(~condition, colData(vst))
-mat <- limma::removeBatchEffect(vstMat,batch=vst$PED,batch2=vst$gender,batch3=vst$age,design=mm)
-assay(vst) <- mat
-
+if (transformation == "rlt"){
+  rlt <- rlog(dds, blind = FALSE) #calculates RLT
+  rltMat <- assay(rlt) #takes the data layer on which RLT is saved
+} else if (transformation == "vst") {
+    vst <- varianceStabilizingTransformation(dds, blind = FALSE) #calculates VST
+    vstMat <- assay(vst) #takes the data layer on which VST is saved
+    mm <- model.matrix(~condition, colData(vst))
+    mat <- limma::removeBatchEffect(vstMat,batch=vst$PED,batch2=vst$gender,batch3=vst$age,design=mm)
+    assay(vst) <- mat
+}
 
 #PCA plot_labelled
 tiff(filename = paste0(resD,"deseq2_pca.tiff"), units="in", width=5, height=5, res=300)
@@ -144,7 +147,9 @@ invisible(dev.off())
 
 ```
 
-## DEGS ANALYSIS
+## ANÁLISIS DE EXPRESIÓN DIFERENCIAL (DEGS)
+
+
 
 ```{r}
 
