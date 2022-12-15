@@ -95,7 +95,7 @@ Una vez que se disponen de los datos de cada muestra, se procede a construir el 
 
 A continuación, se establece la condición "Unaffected" como condición control para la construcción del objeto de DESeq, necesario para la realización del Análisis de Expresión Diferencial. Además se realiza un filtrado previo a la construcción de este objeto donde se descartan aquellos genes con valores de lecturas menores a 10. 
 
-Finalmente se construye el objeto de DESeqDataSet con la función DESeq para poder realizar el análisis de expresión diferencial posteriormente. Por otra parte, se guardan las cuentas normalizadas por si fueran necesarias para procesos downstream.
+Finalmente se construye el objeto de DESeqDataSet con la función DESeq para poder realizar el análisis de expresión diferencial posteriormente. Por otra parte, se guardan las cuentas normalizadas por si fueran necesarias para procesos a posteriori.
 
 ```{r}
 
@@ -123,10 +123,10 @@ write.table (ncounts, file=paste0(resD, "deseq2_normalized_counts_.tsv"), quote=
 
 ## VISUALIZACIÓN DE LOS DATOS
 
-
+Una vez construido el modelo, hay que analizar si el modelo elegido para modelar los datos es el adecuado. Para ello, se transforman los datos para generar un gráfico de Análisis de Componentes Principales (PCA) y poder estudiar cómo se distribuyen las muestras al modelarlas con la variable y covariables seleccionadas.
 
 ```{r}
-transformation <- "vst" # select between "rlt" (Tikhonov Regularized Log Transformation) or "vst" (Variance stabilizing transformation)
+transformation <- "vst" #select between "rlt" (Tikhonov Regularized Log Transformation) or "vst" (Variance stabilizing transformation)
 
 if (transformation == "rlt"){
   rlt <- rlog(dds, blind = FALSE) #calculates RLT
@@ -149,7 +149,7 @@ invisible(dev.off())
 
 ## ANÁLISIS DE EXPRESIÓN DIFERENCIAL (DEGS)
 
-
+Una vez comprobado que el modelo seleccionado para modelar los datos es adecuado, se puede proceder al Análisis de Expresión Diferencial (DEA). Para ello, en primer lugar se definen los niveles de las condiciones del modelo. Posteriormente, con la función results de DESeq2 se realiza el DDEA, indicando los niveles que ha de contrastar. Los resultados obtenidos tienen como identificador el ID de Ensembl, por lo que se añaden los símbolos de genes en una columna extra para que sea más sencilla su posterior evaluación.
 
 ```{r}
 
@@ -177,9 +177,9 @@ res$description <- description #to add the descriptions to the results file
 
 ```
 
-
-
 ## RESULTS
+
+Una vez realizado el DEA, el resultado se guarda en un archivo .tsv. Además, se guardan aquellos genes significativos, tanto con padj < 0.05 como con pvalue < 0.05, por si fueran necesarios para comprobaciones o análisis posteriores.
 
 ```{r}
 
@@ -212,15 +212,14 @@ write.table (significant, file=file, quote=FALSE, sep="\t", col.names=NA)
 
 #Write significant genes (pvalue instead of padj)
 sig_pval <- subset(res, res$pvalue < cutoff)
-file <- paste0(resD, "deseq2_sig_padj_", suffix, ".tsv", sep="")
+file <- paste0(resD, "deseq2_sig_pval_", suffix, ".tsv", sep="")
 write.table (sig_pval, file=file, quote=FALSE, sep="\t", col.names=NA)
 
 ```
 
-
-
-
 ## PLOTS
+
+Una vez guardados los datos en archivos .tsv, el siguiente fragmento de código permite graficar los resultados obtenidos de todo el proceso de DEA.
 
 ```{r}
 
