@@ -301,6 +301,9 @@ pheatmap(mat=lsubcounts[1:genes,],
          )  
 invisible(dev.off())  
 
+
+writeLines(capture.output(sessionInfo()), "sessionInfo_DESeq2.txt")
+
 ```
 
 
