@@ -7,7 +7,6 @@
 #####################
 rm(list=ls())
 
-
 repos = "http://cran.us.r-project.org"
 if ("optparse" %in% row.names(installed.packages())  == FALSE) install.packages("optparse", repos = repos)
 if ("gplots" %in% row.names(installed.packages())  == FALSE) install.packages("gplots", repos = repos)
@@ -50,6 +49,9 @@ suppressPackageStartupMessages({
 
 ## CONFIGURATION
 #####################
+#Paths
+workingD <- rstudioapi::getActiveDocumentContext()$path
+setwd(dirname(workingD))
 
 #Load config file
 config <- "C:/Users/CBM/Desktop/BWH_counts/configfile_def.txt" 
@@ -74,7 +76,7 @@ sampleTable$PED <- factor(sampleTable$PED)
 ## Data
 
 #Build model using condition as main variable
-data <- DESeqDataSetFromHTSeqCount(sampleTable, directory=".", 
+data <- DESeqDataSetFromHTSeqCount(sampleTable, directory="C:/Users/CBM/Desktop/BWH_counts", 
                                    design = ~ age + gender + PED + condition)
 
 

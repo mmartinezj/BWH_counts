@@ -1,29 +1,314 @@
 ---
-title: "deseq2_script"
+title: "DESeq2_pipeline"
 output: html_document
 date: "2022-12-02"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+
+knitr::opts_chunk$set(include = TRUE, echo = TRUE, message = FALSE, warning = FALSE, eval = FALSE)
+
 ```
 
-## R Markdown
+En este archivo se detalla y explica el código empleado para ejecutar el Ánalisis de Expresión Diferencial realizado con con el paquete DESeq2 en R.
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+## LIMPIAR EL ENTORNO DE TRABAJO E INSTALAR Y ACTIVAR LIBRERIAS
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+En primer lugar, se borra el entorno de trabajo para asegurar que ninguna variable o datos de scripts anteriores interfieran con la ejecución del script. Posteriormente se instalan y activan las librerías necesarias para ejecutar el análisis de expresión diferencial.
 
-```{r cars}
-summary(cars)
+```{r}
+
+rm(list=ls())
+
+#Install libraries
+repos = "http://cran.us.r-project.org"
+if ("optparse" %in% row.names(installed.packages())  == FALSE) install.packages("optparse", repos = repos)
+if ("gplots" %in% row.names(installed.packages())  == FALSE) install.packages("gplots", repos = repos)
+if ("ggplot2" %in% row.names(installed.packages())  == FALSE) install.packages("ggplot2", repos = repos)
+if ("RColorBrewer" %in% row.names(installed.packages())  == FALSE) install.packages("RColorBrewer", repos = repos)
+if ("cluster" %in% row.names(installed.packages())  == FALSE) install.packages("cluster", repos = repos)
+if ("pheatmap" %in% row.names(installed.packages())  == FALSE) install.packages("pheatmap", repos = repos)
+if ("grid" %in% row.names(installed.packages())  == FALSE) install.packages("grid", repos = repos)
+if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager", repos = repos)
+if ("DESeq2" %in% row.names(installed.packages()) == FALSE) BiocManager::install("DESeq2")
+if ("AnnotationDbi" %in% row.names(installed.packages()) == FALSE) BiocManager::install("AnnotationDbi")
+if ("vsn" %in% row.names(installed.packages())  == FALSE) BiocManager::install("vsn")
+if ("EnhancedVolcano" %in% row.names(installed.packages())  == FALSE) BiocManager::install("EnhancedVolcano")
+if ("tidyr" %in% row.names(installed.packages())  == FALSE) BiocManager::install("tidyr")
+if ("org.Hs.eg.db" %in% row.names(installed.packages()) == FALSE) BiocManager::install("org.Hs.eg.db")
+if ("apeglm" %in% row.names(installed.packages()) == FALSE) BiocManager::install("apeglm")
+
+#Activate libraries
+suppressPackageStartupMessages({
+  library(BiocManager, quietly = TRUE)
+  library(optparse, quietly = TRUE)
+  library(vsn, quietly = TRUE)
+  library(gplots, quietly = TRUE)
+  library(ggplot2, quietly = TRUE)
+  library(RColorBrewer, quietly = TRUE)
+  library(cluster, quietly = TRUE)
+  library(pheatmap, quietly = TRUE)
+  library(grid, quietly = TRUE)
+  library(BiocManager, quietly = TRUE)
+  library(DESeq2, quietly = TRUE)
+  library(AnnotationDbi, quietly = TRUE)
+  library(EnhancedVolcano, quietly = TRUE)
+  library(tidyr, quietly = TRUE)
+  library(ggrepel, quietly = TRUE)
+  library(cp4p, quietly = TRUE)
+  library(FDRestimation, quietly = TRUE)
+  orgdb <- "org.Hs.eg.db"
+  library(orgdb, quietly = TRUE, character.only = TRUE)
+})
+
 ```
 
-## Including Plots
+## CONFIGURACIÓN
 
-You can also embed plots, for example:
+Una vez instaladas y activadas las librerías a emplear, se le indica al programa el archivo que contiene la información sobre cada muestra: nombre de los archivos que contienen los contajes de las lecturas, identificador único de cada muestra, identificador de cada familia, condición (afectado o no afectado), sexo y edad; y se guarda en la variable config. Después se cargan los datos de contajes de lecturas de cada muestra. Finalmente se transforman las variables de los datos en factores para trabajar con DESeq2.
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r}
+#Paths
+workingD <- rstudioapi::getActiveDocumentContext()$path
+setwd(dirname(workingD))
+resD <- paste0("results/")
+
+#Load config file
+config <- "C:/Users/CBM/Desktop/BWH_counts/configfile_def.txt" 
+
+#Load count data
+sampleTable <- read.table(config, header=TRUE)
+
+
+#Transform data variables to factor
+sampleTable$sample <- factor(sampleTable$sample)
+sampleTable$condition <- factor(sampleTable$condition)
+sampleTable$gender <- factor(sampleTable$gender)
+sampleTable$age <- factor(sampleTable$age)
+sampleTable$PED <- factor(sampleTable$PED)
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+## DATOS
+
+Una vez que se disponen de los datos de cada muestra, se procede a construir el modelo para realizar el Análisis de Expresión Diferencial. En este caso, el modelo se diseña con la variable condición como variable principal, mientras que la edad, el sexo y la familia actúan como covariables del modelo. 
+
+A continuación, se establece la condición "Unaffected" como condición control para la construcción del objeto de DESeq, necesario para la realización del Análisis de Expresión Diferencial. Además se realiza un filtrado previo a la construcción de este objeto donde se descartan aquellos genes con valores de lecturas menores a 10. 
+
+Finalmente se construye el objeto de DESeqDataSet con la función DESeq para poder realizar el análisis de expresión diferencial posteriormente. Por otra parte, se guardan las cuentas normalizadas por si fueran necesarias para procesos a posteriori.
+
+```{r}
+
+#Build model using condition as main variable
+data <- DESeqDataSetFromHTSeqCount(sampleTable, directory="C:/Users/CBM/Desktop/BWH_counts/", 
+                                   design = ~ age + gender + PED + condition)
+
+#Set reference condition
+data$condition <- relevel(data$condition, ref = "Unaffected")
+
+#Pre-filtering (keep genes with counts along all samples >=10)
+keep <- rowSums(counts(data)) >= 10
+data <- data[keep,]
+rm(keep)
+#With this filter, the object goes from 61806 elements to 28525 elements
+
+#Run deseq
+dds <- DESeq(data)
+
+#Obtain and write a file with normalized counts
+ncounts <- counts(dds, normalized=TRUE)
+write.table (ncounts, file=paste0(resD, "deseq2_normalized_counts_.tsv"), quote=FALSE, sep = "\t", col.names=NA) 
+
+```
+
+## VISUALIZACIÓN DE LOS DATOS
+
+Una vez construido el modelo, hay que analizar si el modelo elegido para modelar los datos es el adecuado. Para ello, se transforman los datos para generar un gráfico de Análisis de Componentes Principales (PCA) y poder estudiar cómo se distribuyen las muestras al modelarlas con la variable y covariables seleccionadas.
+
+```{r}
+transformation <- "vst" #select between "rlt" (Tikhonov Regularized Log Transformation) or "vst" (Variance stabilizing transformation)
+
+if (transformation == "rlt"){
+  rlt <- rlog(dds, blind = FALSE) #calculates RLT
+  rltMat <- assay(rlt) #takes the data layer on which RLT is saved
+} else if (transformation == "vst") {
+    vst <- varianceStabilizingTransformation(dds, blind = FALSE) #calculates VST
+    vstMat <- assay(vst) #takes the data layer on which VST is saved
+    mm <- model.matrix(~condition, colData(vst))
+    mat <- limma::removeBatchEffect(vstMat,batch=vst$PED,batch2=vst$gender,batch3=vst$age,design=mm)
+    assay(vst) <- mat
+}
+
+#PCA plot_labelled
+tiff(filename = paste0(resD,"deseq2_pca.tiff"), units="in", width=5, height=5, res=300)
+pca <- plotPCA(vst)
+pca + ggtitle("Principal Components Plot") + geom_text_repel(aes(label=colnames(vst)),  size=2)
+invisible(dev.off())
+
+```
+
+## ANÁLISIS DE EXPRESIÓN DIFERENCIAL (DEGS)
+
+Una vez comprobado que el modelo seleccionado para modelar los datos es adecuado, se puede proceder al Análisis de Expresión Diferencial (DEA). Para ello, en primer lugar se definen los niveles de las condiciones del modelo. Posteriormente, con la función results de DESeq2 se realiza el DDEA, indicando los niveles que ha de contrastar. Los resultados obtenidos tienen como identificador el ID de Ensembl, por lo que se añaden los símbolos de genes en una columna extra para que sea más sencilla su posterior evaluación.
+
+```{r}
+
+#Save levels
+levels <- unique(sampleTable$condition)
+ll <- length(levels)
+l1 <- toString(levels[1])
+l2 <- toString(levels[2])
+
+#Execute DEGs analysis
+res <- results(dds, contrast=c("condition", l1, l2))
+res
+res$FoldChange <- 2^res$log2FoldChange  
+res <- res[colnames(res)[c(1,7,2:6)]] # order columns
+
+
+#Add symbol and description to results
+symbol <- mapIds(get('org.Hs.eg.db'), keys=row.names(res), column="SYMBOL", 
+                 keytype="ENSEMBL", multiVals="first") #to obtain gene symbols
+description <- mapIds(get('org.Hs.eg.db'), keys=row.names(res),
+                      column="GENENAME", keytype="ENSEMBL", 
+                      multiVals="first") #to obtain description
+res <- cbind(symbol, res) #to add the symbols to the results file
+res$description <- description #to add the descriptions to the results file
+
+```
+
+## RESULTS
+
+Una vez realizado el DEA, el resultado se guarda en un archivo .tsv. Además, se guardan aquellos genes significativos, tanto con padj < 0.05 como con pvalue < 0.05, por si fueran necesarios para comprobaciones o análisis posteriores.
+
+```{r}
+
+my_colour <- list(df=c(l1="orange", l2="skyblue"))
+suffix <- paste(l1, l2, sep="_vs_")
+
+cutoff <- 0.05
+
+conditions <- c(l1, l2)
+conds <- subset(sampleTable, sampleTable$condition %in% conditions)
+samples <- conds$sample
+df <- data.frame(condition=conds$condition)
+rownames(df) <- samples
+significant <- subset(res, res$padj < cutoff)
+significant <- significant[order(significant$padj),]
+subcounts <- subset(ncounts, rownames(ncounts) %in% rownames(significant))
+subcounts <- subcounts[,rownames(df)]
+lsubcounts <- log2(subcounts+1)
+
+
+#Write all genes
+file <- paste0(resD, "all_genes_", suffix, ".tsv", sep="")
+write.table (res, file=file, quote=FALSE, sep="\t", col.names=NA) 
+
+
+#Write significant genes (padj<0.05)
+file <- paste0(resD, "0.05_sig_padj_", suffix, ".tsv", sep="")
+write.table (significant, file=file, quote=FALSE, sep="\t", col.names=NA)
+
+
+#Write significant genes (pvalue instead of padj)
+sig_pval <- subset(res, res$pvalue < cutoff)
+file <- paste0(resD, "deseq2_sig_pval_", suffix, ".tsv", sep="")
+write.table (sig_pval, file=file, quote=FALSE, sep="\t", col.names=NA)
+
+```
+
+## PLOTS
+
+Una vez guardados los datos en archivos .tsv, el siguiente fragmento de código permite graficar los resultados obtenidos de todo el proceso de DEA.
+
+```{r}
+
+## MA-plot
+
+file <- paste0(resD, "deseq2_maplot.tiff", sep="")
+main <- "MA-plot"
+
+jpeg(filename = file, units="in", width=5, height=5, res=300)
+DESeq2::plotMA(res, alpha= 0.05, main=main)
+invisible(dev.off())
+
+
+## Volcano plot
+
+#Pre-filtering padj:
+keep_noNA <- !is.na(res$padj)
+res_2 <- res[keep_noNA,]
+rm(keep_noNA)
+
+#Pre-filtering (remove outliers):
+keep_FC <- (res_2$log2FoldChange <= 4.5) & (res_2$log2FoldChange >= -4.5)
+res_2 <- res_2[keep_FC,]
+rm(keep_FC)
+
+file <- paste0(resD, "volcano_plot_", suffix, ".tiff", sep="")
+jpeg(filename = file, units="in", width=10, height=9, res=300)   
+EnhancedVolcano(res_2,
+                lab = res_2$symbol,
+                x = 'log2FoldChange',
+                y = 'pvalue',
+                xlab = expression(~Log[2]~Fold~Change),
+                ylab = expression(~-Log[10]~italic(pvalue)),
+                ylim = c(0, 11),
+                xlim = c(-3.5, 3.5),
+                title = '',
+                subtitle = '',
+                pCutoff = 0.0002,
+                FCcutoff = 0.3,
+                pointSize = 1.5,
+                labSize = 5,
+                colAlpha = 0.5,
+                legendLabels=c('Not sig', expression(~Log[2]~Fold~Change), 'pvalue', expression(pvalue~and~Log[2]~FC)),
+                legendPosition = "right",
+                drawConnectors = TRUE,
+                arrowheads = FALSE,
+                widthConnectors = 0.7,
+                gridlines.major = FALSE,
+                gridlines.minor = FALSE
+                )
+invisible(dev.off())  
+
+
+## Heatmap 
+hmcol <- colorRampPalette(c("red", "yellow", "blue"))(299)
+
+genes <- 17 #number of significant genes (padj < 0.01)
+significant_symbol <- as.character(significant$symbol)
+my_colour = list(df=c(l1="skyblue", l2="orange"))
+
+file <- paste0(resD, "heatmap_", suffix, ".jpeg", sep="")
+main <- paste("Heatmap of genes with p value adjusted < 0.01", sep=" ")
+jpeg(filename = file, units="in", width=8, height=5, res=300) 
+pheatmap(mat=lsubcounts[1:genes,], 
+         scale="row", 
+         cluster_cols=T, 
+         labels_row = significant_symbol,
+         cluster_rows=T, 
+         legend = T, 
+         drop_levels = T, 
+         fontsize_row=9, 
+         annotation_col=df, 
+         annotation_colors=my_colour, 
+         show_rownames=T,
+         show_colnames=T, 
+         annotation_names_col=F, 
+         annotation_names_row=F, 
+         main=main
+         )  
+invisible(dev.off())  
+
+
+writeLines(capture.output(sessionInfo()), "sessionInfo_DESeq2.txt")
+
+```
+
+
+
+
+
+
+
