@@ -1,0 +1,30 @@
+# Summary files #
+#################
+*.tsv
+*.pdf
+*.voila
+*.xlsx
+*.sql
+*.majiq
+*.sj
+*.did_adjust.record
+.Rhistory
+
+# Packages #
+############
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# MacOS files #
+.DS_Store
+.DS_Store?
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
